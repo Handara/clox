@@ -2,6 +2,7 @@
 #define clox_memory_h
 
 #include "common.h"
+#include <stdio.h>
 
 #define MIN_RANK 6ull
 #define MAX_RANK 32ull
@@ -15,10 +16,12 @@ struct buddyBlock{
     size_t rank;
     buddyBlock* next;
     buddyBlock* prev;
+    bool isFree;
 };
 
 typedef struct{
     uint8_t* start;
+    size_t maxRank;
     buddyBlock* freelist[RANK_COUNT];
 }buddyAllocator;
 
@@ -36,4 +39,6 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize);
 void initBuddyAllocator(size_t size);
 void addToFreeList(buddyBlock* block, size_t rank);
 void removeFromFreeList(buddyBlock* block);
+buddyBlock* getBuddy(buddyBlock* block);
+
 #endif

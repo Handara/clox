@@ -29,7 +29,7 @@ void initBuddyAllocator(size_t size){
     size_t first_block_size = nextPowerOfTwo(size);
     allocator = malloc(sizeof(buddyAllocator) + first_block_size);
     allocator->start = ((uint8_t*) allocator) + sizeof(buddyAllocator);
-
+    allocator->maxRank = sizeToRank(first_block_size);
     for (size_t i = 0; i < RANK_COUNT; i++){
         allocator->freelist[i] = NULL;
     }
@@ -39,6 +39,7 @@ void initBuddyAllocator(size_t size){
 void addToFreeList(buddyBlock* block, size_t rank){
     block->rank= rank;
     block->prev = NULL;
+    block->isFree = true;
     block->next = allocator->freelist[rank]; 
     if (block->next){
         block->next->prev = block;
@@ -57,6 +58,7 @@ void removeFromFreeList(buddyBlock* block){
     }
     block->next = NULL;
     block->prev = NULL;
+    block->isFree = false;
 }
 
 buddyBlock* getBuddy(buddyBlock* block){ 
@@ -86,18 +88,40 @@ void* allocate(size_t size){
     while(block->rank > rank){
         block->rank--;
         buddyBlock* buddy = getBuddy(block);
-        addToFreeList(buddy, buddy->rank);
-    }    
+        addToFreeList(buddy, block->rank);
+    }   
     return (uint8_t*)block + sizeof(buddyBlock);
+}
+
+void freelocate(void* pointer){
+    buddyBlock* block = (buddyBlock*)((uint8_t*)pointer - sizeof(buddyBlock));      
+    
+    while(block->rank < allocator->maxRank){
+        buddyBlock* buddy = getBuddy(block);
+        if(!buddy->isFree || buddy->rank != block->rank){
+            break;
+        }
+        removeFromFreeList(buddy);
+        if(buddy < block){
+            block = buddy;
+        }
+        block->rank++;
+    }
+    addToFreeList(block, block->rank);
 }
 
 void* reallocate(void* pointer, size_t oldSize, size_t newSize){
     if (newSize == 0){
         //free(pointer);
+        freelocate(pointer);
         return NULL;
     }
     void* result = allocate(newSize);
-    pointer = memcpy(result,pointer,oldSize);
+    if(pointer){
+        memcpy(result,pointer,oldSize);
+        freelocate(pointer);
+    }
+        
     if (result == NULL) exit(1);
     return result;
 }
